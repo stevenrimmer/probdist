@@ -1,5 +1,5 @@
 rm()
-setwd("C:/Users/s46kxj/Desktop/ProgAct")
+setwd("PATH")
 
 p = 0.5
 n = 100
