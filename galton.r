@@ -3,7 +3,7 @@
 ###  Galton Board
 ###
 ###  Code to demonstrate link between Bernoulli, Binomial and Normal distributions
-###  4 December 2017 v1.0
+###  10 December 2017 v1.1
 ###
 #############################################################################################################################
 ###  
@@ -13,7 +13,7 @@
 ###  of falling to the right and (1-p) falling to the left.
 ###  The ball will then hit the next pin. There are n rows of pins
 ###  in total. After hitting the final pin, the ball will land in
-###  one of 101 buckets.
+###  one of (n+1) buckets.
 ###
 ###  The code simulates this directly and counts the number of balls
 ###  in each bucket. It then calculates this result directly using the
@@ -30,9 +30,9 @@ require(stats)							# Call the stats package for binomial and normal distributi
 tic = Sys.time()						# Start timer
 ### Initialise parameters
 
+ns = 100001							# Number of simulations
 p = 0.5								# Probability of falling right
 n = 100								# Number of rows of pins
-ns = 100001							# Number of simulations
 bucket_count <- array(dim=c(n+1))				# Initialise an (n+1)-array to store count of balls
 bucket_count[] = 0						# Start count at zero in each bucket
 bounce <- array(dim=c(n))					# Initialise an n-array to store the path of a single ball
@@ -52,7 +52,7 @@ for (s in 1:ns) {						# Initial a loop over the number of simulations
 toc = Sys.time()						# End timer
 #############################################################################################################################
 
-cat("Runtime of numerical simulation    : ", sprintf("%.5f",toc-tic), "seconds \n \r")	
+cat("Runtime of numerical simulation    : ", sprintf("%.5f",as.numeric(difftime(toc,tic,units=c("secs")))), "seconds \n \r")	
 								# Print the runtime of the numerical simulation (in seconds) to the screen
 								# using 5 decimal places, starting a new line with carraige return
 
@@ -60,7 +60,7 @@ tic = Sys.time()						# Start timer
 compare_binom = ns*dbinom(0:n,size=n,prob=p)			# Generate the binomial distribution directly from R stats library
 compare_norm  = ns*dnorm(0:n,mean=n*p,sd=sqrt(n*p*(1-p)))	# Generate the normal distribution directly from R stats library
 toc = Sys.time()						# End timer
-cat("Runtime of statistical libraries   : ", sprintf("%.5f",toc-tic), "seconds \n \r")	
+cat("Runtime of statistical libraries   : ", sprintf("%.5f",as.numeric(difftime(toc,tic,units=c("secs")))), "seconds \n \r")	
 								# Print the runtime of calling the libraries (in seconds) to the screen
 
 tic = Sys.time()						# Start timer
@@ -69,7 +69,7 @@ points(compare_binom,pch=21,col="red")				# Overlay the binomial distribution as
 lines(compare_norm,col="blue")					# Overlay the normal distribution as a blue line
 toc = Sys.time()						# End timer
 
-cat("Runtime of graphical output        : ", sprintf("%.5f",toc-tic),"seconds \n \r")	
+cat("Runtime of graphical output        : ", sprintf("%.5f",as.numeric(difftime(toc,tic,units=c("secs")))),"seconds \n \r")	
 								# Print the runtime of the graphical output (in seconds) to the screen
 
 #############################################################################################################################
