@@ -1,0 +1,123 @@
+--- 
+title: "Waiting"
+author: "Steven Rimmer"
+date: "16 April 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Introduction
+
+Code to demonstrate the link between the waiting times in a Poisson process to
+the Gamma and Exponential distributions.
+
+* Simulate an approximation to a Poisson process using discrete time steps
+* Measure the waiting time to each kth event
+* Group the output to plot distribution 
+* Compare the grouped output to waiting times drawn from: 
+* The Gamma distribution 
+* The Exponential distribution in the special case where k = 1, the waiting time between each Poisson events
+
+## Parameters and initialisation
+
+Clear the memory of objects stored from previous work and call libraries: 
+```{r initialisation}
+rm(list=ls())	# Remove objects currently in the workspace 
+require(stats)							# Call the stats package for gamma and exponential distributions 
+library(tibble)
+library(ggplot2)
+library(dplyr) 
+```
+
+Set the timer: 
+```{r tic} 
+tic = Sys.time() 
+```
+
+Initiaise parameters:
+```{r parameters} 
+p  = 0.001                        # Ratefor poisson process 
+n  = 10e6                         # Number of time steps 
+k = 5                            # Waiting time for the kth arrival simulated 
+k_count = 0                       # Counter to keep count up to kth-event 
+event <- array(dim=c(n))					# Initialise an n-array to record when events occur 
+count_event <- array(dim=c(n))					# Initialise an n-array to record the cumulative count of kth-events 
+clock_event <- array(dim=c(n))					# Initialise an n-array to record the time at which each kth-event happened 
+plot_bins <- n*p/k/10 
+```
+
+## Simulation
+
+Simulate events occurring for each time step using uniform distribution: 
+```{r simulate} 
+event = runif(n,0,1) < p 
+```
+
+We want to Consider the first time step separately.
+
+```{r step_one} 
+if (event[1] == 0) {						# If the first time step does not have an event: 
+  count_event[1] = 0 } else {				#	Set the cumulative count to zero 
+                                        # If the first time step does contain an event:
+  if (k_count == (k-1)) {					# 	And if we have reached the kth event: 
+    count_event[1] = 1					#		Set the cumulative kth-count to one
+    clock_event[1] = 1					#		Record the first kth-event happening at t = 1 
+    } else {						#	Else if we have not reached the kth event: 
+count_event[1] = 0					#		Set the cumulative count to zero 
+k_count = k_count +1}					#		Increase the count of events seen before reaching the kth 
+    } 
+for (i in 2:n) {						# Set up a loop to consider the subsequent time steps in turn 
+  if (event[i] == 0) {					# If this time step does not have an event: 
+  count_event[i] = count_event[i-1]			# 	Increase the cumulative count by one 
+    } else {						# If this time step does contain an event: 
+      if (k_count == (k-1)) {					#	And if we have reached the kth event: 
+        count_event[i] = count_event[i-1] + 1			#		Increase the cumulative count by one 
+        clock_event[count_event[i]] = i				#		Record the time step at which this event occurred 
+        k_count = 0						#		Reset the k-counter to start counting again
+        } else {						#	Else if we have not reached the kth event: 
+          k_count = k_count + 1					#		Increease the k-counter by one 
+          count_event[i] = count_event[i-1]			#		Maintain the cumulative event count 
+          }} }
+tot_event = count_event[n]					# Record the total number of kth-events 
+wait_time <- array(dim=c(tot_event))				# Inialise an array to record the wait time to each kth-event 
+wait_time[1] = clock_event[1]-1					# Record the wait time to the first kth-event 
+for (i in 2:tot_event) { 					# Set-up a loop to cycle through each kth-event
+  wait_time[i] = clock_event[i]-clock_event[i-1] }	# Record the waiting for the kth-event
+
+toc = Sys.time()						# End timer 
+
+waiting <- tibble(event_num =1:tot_event,
+                  clock_event = clock_event[1:tot_event],
+                  wait_time=wait_time[1:tot_event]) 
+rm(clock_event,count_event,event)
+```
+
+```{r plot} 
+(histplot <-
+ggplot(waiting)+geom_histogram(aes(wait_time),breaks=seq(0,10*n*p/k,by=plot_bins)))
+```
+
+``` {r comparison} 
+wait_bucket <- array(dim=c(tot_event))				# Initialise array to bucket simulated waiting times for graphical output 
+wait_bucket = ceiling(wait_time/plot_bins)				# Allocate simulated wait times to a bucket 
+num_bucket = max(wait_bucket)
+count_bucket = array(dim=c(num_bucket)) 
+for (i in 1:num_bucket) {count_bucket[i]=sum(wait_bucket==i)}  
+#ggplot_build(histplot)$data[[1]] 
+#count_bucket 
+```
+
+``` {r compare} 
+compare_plot <- tibble(centre = seq(0.5,(length(count_bucket)-0.5))*plot_bins, 
+                       count = count_bucket,
+                       gamma = (n*p*plot_bins/k)*dgamma(centre,shape=k,rate=p), 
+                       expdist = (n*p*plot_bins)*dexp(centre,rate=p)) 
+ggplot(compare_plot)+
+  geom_col(aes(centre,count),width=plot_bins)+ 
+  geom_line(aes(centre,gamma),colour="red",size=1.2)+
+  if (k==1) {geom_line(aes(centre,expdist),colour="blue",size=1.2)} 
+```

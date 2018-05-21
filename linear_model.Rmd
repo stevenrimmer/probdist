@@ -1,0 +1,190 @@
+---
+title: "Linear Model"
+author: "Steven Rimmer"
+date: "20 May 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Model set-up
+
+Some description of how linear models work.
+
+Define a linear model:
+$$ y = c + mx + \epsilon $$
+Where:
+$$ \epsilon \sim N \left( 0,\sigma \right) $$
+
+```{r clean}
+rm(list=ls())							# Remove objects currently in the workspace 
+tic=Sys.time()
+library(ggplot2)
+library(tibble)
+library(dplyr)
+```
+
+Parameters a true underlying linear model with slope, $m=0.5$, and intercept, $c = 25$. K
+
+```{r slope_intercept}
+m = 0.5
+c = 25
+```
+
+And the noise term, which will have mean, $\mu=0$, and standard deviation, $sigma=20$.
+
+```{r add_noise}
+mu = 0
+sigma = 20
+```
+
+We will generate $n=15$ data points from this model and store then in arrays $x$ and $y$. 
+
+```{r draw}
+n=15
+x <- array(dim=c(n))
+y <- array(dim=c(n))
+```
+
+First, generate $n=15$ values of the independent variable, $x$.
+```{r input}
+x = sort(runif(n,min=0,100))
+print(x)          # Output to screen the randomly drawn numbers, sorted from low to high
+```
+
+To understand this, we will do the first one 'by hand' to see the results, then run the remaining simulations as a batch and only store the key results.
+
+```{r first_sim}
+e = rnorm(n,mean = mu, sd = sigma)
+y = m*x + c + e
+result <- tibble(x=x,y=y,sim=1)
+ggplot(data=result) + geom_point(mapping = aes(x=x,y=y,colour="red"))+
+  xlim(0,100)+ylim(0,100)+coord_fixed(ratio=1)+
+  theme(legend.position = "none")
+```
+
+```{r fit_example}
+fit <- lm(y~x)
+(fit_summary <- print(summary(fit)))
+```
+
+The command `fit <- lm(y~x, data=data)` generates an object `fit` which contains the results of fitting a linear model to the $y$ and $x$ data.
+
+The `summary()` function summarises the key output, but the fitted coefficients can be output:
+
+For example the `coefficients` attribute holds the following data:
+
+```{r coefficients}
+print(fit_summary$coefficients[1]) # the estimated intercept, c
+print(fit_summary$coefficients[2]) # the estimated slope, m
+print(fit_summary$coefficients[3]) # the standard error for the estimated intercept, c
+print(fit_summary$coefficients[4]) # the standard error for the estimated slope, m
+print(fit_summary$coefficients[5]) # the t-value for the estimated intercept, c
+print(fit_summary$coefficients[6]) # the t-value for the estimated slope, m
+print(fit_summary$coefficients[7]) # the p-value for the estimated intercept, c
+print(fit_summary$coefficients[8]) # the p-value for the estimated slope, m
+```
+
+```{r addfitted}
+result <- bind_cols(result,tibble(fitted = fit$fitted.values, true = m*x+c))
+```
+
+We can add the fitted result:
+
+```{r plot_fit}
+ggplot(data=result) + 
+  xlim(0,100)+ylim(0,100)+coord_fixed(ratio=1)+
+  geom_point(mapping = aes(x=x,y=y,colour="red"))+
+  geom_line(mapping = aes(x=x,y=fitted,colour="red"))+
+  geom_line(mapping = aes(x=x,y=true))+
+  theme(legend.position = "none")
+```
+
+```{r few_more_sims}
+n_quick <- 10
+for (i in 2:n_quick) {
+e = rnorm(n,mean = mu, sd = sigma)
+y = m*x + c + e
+fit <- lm(y~x)
+result <- bind_rows(result,tibble(x=x,y=y,sim=i,fitted=fit$fitted.values,true = m*x+c))
+}
+
+ggplot(data=result) + 
+  xlim(0,100)+ylim(0,100)+coord_fixed(ratio=1)+
+  geom_point(mapping = aes(x=x,y=y,colour=factor(sim)))+
+  geom_line(mapping = aes(x=x,y=fitted,colour=factor(sim)))+
+  geom_line(mapping = aes(x=x,y=true))
+```
+
+# Simulate
+
+For each fitted model, we will store the fitted value for the slope ($\hat(m)$), intercept ($\hat(c)$), standard error ($\hat(sigma)$), the t-value and the p-value.
+We will now generate $ns=10000$ examples of observations of $y$, based on the defined linear model using random realisations of the noise function, $\epsilon$. For each of the genereated sets of $y$ (based on the known $x$), we use the r function `lm()` to find the best fitting linear model based on those observations.
+
+```{r simulate}
+ns=100000
+intercept <- array(dim=c(ns))
+slope <- array(dim=c(ns))
+std_error_intercept <- array(dim=c(ns))
+std_error_slope <- array(dim=c(ns))
+t_value_intercept <- array(dim=c(ns))
+t_value_slope <- array(dim=c(ns))
+p_value_intercept <- array(dim=c(ns))
+p_value_slope <- array(dim=c(ns))
+for (i in 1:ns) {
+	e = rnorm(n,mean = mu, sd = sigma)
+	y = m*x + c + e
+	fit= lm(y~x)
+	intercept[i]=summary(fit)$coefficients[1]
+	slope[i] = summary(fit)$coefficients[2]
+	std_error_intercept[i] = summary(fit)$coefficients[3]
+	std_error_slope[i] = summary(fit)$coefficients[4]
+	t_value_intercept[i] = summary(fit)$coefficients[5]
+	t_value_slope[i] = summary(fit)$coefficients[6]
+	p_value_intercept[i] = summary(fit)$coefficients[7]
+	p_value_slope[i] = summary(fit)$coefficients[8]
+}
+
+sims <- tibble(intercept,
+               slope,
+               std_error_intercept,
+               std_error_slope,
+               t_value_intercept,
+               t_value_slope,
+               p_value_intercept,
+               p_value_slope,
+               intercept_neg=intercept<0,
+               slope_neg=slope<0)
+toc=Sys.time()
+write.csv(sims,"sims.csv")
+
+```
+
+```{r intercept_plot}
+ggplot(data=sims,aes(x=intercept))+
+  geom_histogram(aes(y=..density..),bins=100)+
+  stat_function(fun=dnorm,
+                args=list(mean=mean(intercept),sd=mean(std_error_intercept)),
+                colour="red",lwd=1.5
+                )
+#t_value_check = sims$intercept/sims$std_error_intercept-sims$t_value_intercept
+#p_value_check =  2*pt(q=-abs(sims$t_value_intercept),df=n-2)-sims$p_value_intercept
+```
+
+```{r slope_plot}
+ggplot(data=sims,aes(x=slope))+
+  geom_histogram(aes(y=..density..),bins=100)+
+  stat_function(fun=dnorm,
+                args=list(mean=mean(slope),sd=mean(std_error_slope)),
+                colour="red",lwd=1.5
+                )
+```
+
+
+
+
+
+
+

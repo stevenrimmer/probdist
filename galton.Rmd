@@ -1,0 +1,126 @@
+---
+title: "Galton Board"
+author: "Steven Rimmer"
+date: "15 April 2018"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+Code to demonstrate link between Bernoulli, Binomial and Normal distributions.
+
+* To simulate a Galton board.
+    * Pins are hammered into a board in a triangle layout. 
+    * A ball is dropped from the top, and has a probability p of falling to the right and (1-p) falling to the left.
+    * The ball will then hit the next pin. There are n rows of pins in total. After hitting the final pin, the ball will land in one of (n+1) buckets.
+* The code simulates this directly and counts the number of balls in each bucket. It then calculates this result directly using the binomial distribution from the _stats_ package. Finally it shows the Normal distribution approximates the binomial distribution from large n. 
+
+## Parameters and initialisation
+
+Clear the memory of objects stored from previous work and call libraries:
+```{r initialise, message=FALSE, warning=FALSE}
+rm(list=ls())
+library(stats)
+library(tibble)
+library(ggplot2)
+library(dplyr)
+```
+
+Set the timer:
+```{r tic}
+tic = Sys.time()				
+```
+
+Initiaise parameters:
+```{r parameters}
+ns <-  1000001                            # Number of simulations
+p <- 0.4                                  # Probability of falling right on any pin
+n <-  200                                 # Number of rows of pins
+which_bucket <- array(dim=c(ns))          # Initialise an ns-array to record the outcome of each simulation
+bucket_count <- array(dim=c(n+1))         # Initialise an (n+1)-array to store the count how many balls 
+                                                # have fallen into each 'bucket' after the final row of pins
+bucket_count[] <-  0                      # Start count at zero in each bucket
+bounce <- array(dim=c(n))                 # Initialise an n-array to store the path of a single ball
+count_fall_right <-  0                    # Start the counter for number of times the ball bounces left
+```
+
+## Simulation
+
+* Initialise a loop over `ns` simulations: `for (s in 1:ns) {...}`
+* `bounce` will simulate the path of a single ball by generating `n` random numbers drawn from the Uniform distribution [0,1] and testing against the parameter `p`: `runif(n,0,1)<p`
+* If the random number generated is less than `p`, we will count the ball as having bounced 'left' at that pin and store the value `TRUE` in the entry of the `bounce` array which corresponds to that row of the Galton Board.
+* If the random number is not less than `p`, we will count the ball as having boucned `right` at that pin and will store the value `FALSE`.
+* To determine into which bucket the ball lands, we count the number of right bounces for that simulation and store the answer for each simulation: `which_bucket[s] = sum(bounce)+1`
+* Finally, we can add an additional count to the bucket into which the ball landed: `bucket_count[which_bucket[s]] = bucket_count[which_bucket[s]]+1`
+
+```{r simulation}
+for (s in 1:ns) {                         
+   bounce = runif(n,0,1) < p              
+   which_bucket[s] = sum(bounce)+1					
+   bucket_count[which_bucket[s]] = bucket_count[which_bucket[s]]+1
+}
+```
+
+End the timer and display the runtime:
+
+```{r toc}
+toc = Sys.time()					
+toc-tic
+```
+
+## Checks and visualisation
+
+The result of the simulation is now stored in `bucket_count`. For further manipulation, it is convenient to store these results in a 'frame' known as a `tibble`. In particular, holding the data in a `tibble` makes visualising the results in `library(ggplot2)` more straightforward.
+
+```{r tibbles}
+(galton_sims <- tibble(bucket=which_bucket))
+(galton <- tibble(bucket=1:(n+1),bucket_count=bucket_count))
+```
+
+```{r sims_plot}
+(sims_plot <- ggplot(galton_sims)+
+   geom_histogram(aes(bucket),binwidth=1)+
+   coord_cartesian(xlim=c(n*p-3*sqrt(n*p*(1-p)),n*p+3*sqrt(n*p*(1-p)))))
+head(ggplot_build(sims_plot)$data[[1]])
+filter(galton,bucket_count!=0)
+```
+
+``` {r count_plot}
+ggplot(galton)+
+  geom_col(aes(bucket,bucket_count),width=1)+
+  coord_cartesian(xlim=c(n*p-3*sqrt(n*p*(1-p)),n*p+3*sqrt(n*p*(1-p))))
+```
+
+
+```{r fits}
+galton <- mutate(galton,
+                 binomial_fit = ns*dbinom(bucket-1,size=n,prob=p),
+                 normal_fit = ns*dnorm(bucket-1,mean=n*p,sd=sqrt(n*p*(1-p))))
+(filter(galton,
+      bucket>n*p-sqrt(n*p*(1-p))&bucket<n*p+sqrt(n*p*(1-p))))
+
+ggplot(galton)+
+  geom_col(aes(bucket,bucket_count),width=1)+
+  geom_line(aes(bucket,normal_fit),colour="blue",size=1.2)+
+  geom_point(aes(bucket,binomial_fit),colour="red",size=2)+
+  coord_cartesian(xlim=c(n*p-3*sqrt(n*p*(1-p)),n*p+3*sqrt(n*p*(1-p))))
+
+```
+
+```{r pile-pile}
+ggplot(galton)+
+  coord_equal(ratio=1)+
+  coord_fixed()+
+  geom_point(aes(bucket_count,binomial_fit),colour="red")+
+  geom_point(aes(bucket_count,normal_fit),colour="blue")+
+  geom_abline(size=0.8,alpha=0.5)
+
+```
+
+
+
